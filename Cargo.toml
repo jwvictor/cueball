@@ -1,0 +1,16 @@
+[package]
+name = "cueball"
+version = "0.1.0"
+authors = ["jwvictor"]
+license = "BSDv2"
+readme = "README.md"
+documentation = ""
+description = "Quantum computing programming language and simulator."
+
+[features]
+optimize = []
+
+[dependencies]
+float-cmp = "0.2.2"
+rand = "0.3"
+sexp = "1.1.4"
