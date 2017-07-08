@@ -6,41 +6,12 @@ use sexp::Atom::S;
 use std::collections::HashMap;
 use std::result::Result;
 use lang::parser::*;
+use lang::compilation::*;
 use std::string::String;
 
-type VSymbol = String;
+pub type VSymbol = String;
+type EvalRes = Result<QEval,String>;
 
-/// IL gate 
-#[derive(Debug, Clone, Copy)]
-pub enum IlGateType {
-    HADAMARD,
-    PAULIX,
-    PAULIY,
-    PAULIZ,
-    CNOT,
-}
-
-/// IL circuit application 
-#[derive(Debug, Clone)]
-pub struct IlGate {
-    pub gate_type: IlGateType,
-    pub bit0: Option<VSymbol>,
-    pub bit1: Option<VSymbol>,
-    pub bit2: Option<VSymbol>,
-}
-
-/// Quantum lambda IL
-#[derive(Debug, Clone)]
-pub struct IlLambda {
-    pub gates:Vec<IlGate>,
-}
-
-/// Quantum reference 
-#[derive(Debug, Clone)]
-pub struct QRef {
-    pub mem: Option<u64>,
-    pub qref: Option<Box<QRef>>,
-}
 
 /// Evaluator 
 #[derive(Debug, Clone)]
@@ -62,7 +33,18 @@ fn is_sexp_atom_s(a:&sexp::Sexp, c:&str) -> bool {
     }
 }
 
+fn syntax_err(detail:Option<&str>) -> EvalRes {
+    match detail {
+        Some(q) => {
+            let s = format!("Syntax error: {}", q);
+            Err(s)
+        },
+        None => Err(String::from("Syntax error")),
+    }
+}
+
 impl <'a> Evaluator<'a> {
+
 
     pub fn new<'b>(parser:&'b Parser) -> Evaluator<'b> {
         Evaluator {
@@ -78,9 +60,9 @@ impl <'a> Evaluator<'a> {
         s.to_vec()
     }
 
-    fn eval_module(&mut self, s: &sexp::Sexp) -> Result<QEval,&'static str> {
+    fn eval_module(&mut self, s: &sexp::Sexp) -> EvalRes {
         match s {
-            &Atom(ref a) => Err("Parser error: not expecting atom."),
+            &Atom(ref a) => syntax_err(Some("atom unexpected")), //Err("Parser error: not expecting atom."),
             &List(ref v) => {
                 let mod_name = match &v[1] {
                     &Atom(ref a) => match a {
@@ -104,26 +86,24 @@ impl <'a> Evaluator<'a> {
                             }
                         }
                         match r {
-                            Some(x) => Ok(x),
-                            None => Err("Nothing defined in module"),
+                            Some(x) => Ok(QEval::Nothing),
+                            None => syntax_err(Some("nothing defined")),
                         }
                     },
-                    None => Err("Invalid module name."),
+                    None => syntax_err(Some("Invalid module name.")),
                 }
-                /*;
-                match &v[2] {
-                    &Atom(_) => Err("Syntax error in module."),
-                    &List(ref v) => {
-                        if v[0] == "qdef" {
-                            eval_qdef(List(&v
-                    }*/
             }
         }
     }
 
-    fn eval_qdef(&mut self, s: &sexp::Sexp) -> Result<QEval,&'static str> {
+    fn compile_instruction(&mut self, s: &sexp::Sexp) -> Vec<IlGate> {
+        let mut qcc = QCompiler::new(&self);
+        qcc.compile(s)
+    }
+
+    fn eval_qdef(&mut self, s: &sexp::Sexp) -> EvalRes {
         match s {
-            &Atom(ref a) => Err("Syntax error: qdef"),
+            &Atom(ref a) => syntax_err(Some("qdef")),
             &List(ref v) => {
                 match &v[1] {
                     &Atom(ref x) => match x {
@@ -136,46 +116,73 @@ impl <'a> Evaluator<'a> {
                                         &S(ref nn) => {
                                             let qn = nn;
                                             self.mmap.insert((*qn).clone(), mem_addr as u64);
-                                            Ok(format!("Defined bit at {}", mem_addr))
+                                            Ok(QEval::S(format!("Defined bit at {}", mem_addr)))
                                         },
-                                        _ => Err("Syntax"),
+                                        _ => syntax_err(None),
                                     },
-                                    _ => Err("Bad syntax"),
+                                    _ => syntax_err(None),
                                 }
                             } else if &typestr[..] == "lambda" {
-                                Ok(String::from("hi"))
+                                let mut res:Vec<Vec<IlGate>> = vec![];
+                                let arg_list:Vec<VSymbol> = match &v[2] {
+                                    &Atom(_) => vec![],
+                                    &List(ref vargs) => {
+                                        /*let mut lst:Vec<String> = vec![];
+                                        for x in vargs {
+                                            lst.push(x)
+                                        }
+                                        lst*/
+                                        vargs.into_iter().map(|x| { match x {
+                                            &Atom(ref a) => match a {
+                                                &S(ref z) => z.clone(),
+                                                _ => String::from(""),
+                                            },
+                                            _ => String::from(""),
+                                        } }).collect()
+                                    }
+                                };
+                                println!("Arg list: {:?}\n", arg_list);
+                                match &v[3] {
+                                    &Atom(_) => syntax_err(Some("near lambda")),
+                                    &List(ref vec) => {
+                                        for x in vec.iter() {
+                                            res.push(self.compile_instruction(x))
+                                        }
+                                        println!("Instructions: {:?}\n", res);
+                                        Ok(QEval::S(String::from("hi")))
+                                    }
+                                }
                             } else {
-                                Err("Syntax error")
+                                syntax_err(None)
                             }
                         },
-                        _ => Err("Syntax error"),
+                        _ => syntax_err(None), 
                     },
-                    _ => Err("Syntax error"),
+                    _ => syntax_err(None), 
                 }
             }
         }
-        //Ok(format!("{}", s))
     }
 
-    pub fn eval(&mut self, s: &sexp::Sexp) -> Result<QEval,&'static str> {
+    pub fn eval(&mut self, s: &sexp::Sexp) -> EvalRes {
         match s {
-            &Atom(ref a) => { Err("Parse error") },
+            &Atom(ref a) => { syntax_err(None) },
             &List(ref v) => {
                 if is_sexp_atom_s(&v[0], "module") {
                     self.eval_module(s)
                 } else if is_sexp_atom_s(&v[0], "qdef") {
                     self.eval_qdef(s)
                 } else {
-                    Err("Syntax: top level definition must be a module.")
+                    syntax_err(Some("top level definition must be a module"))
                 }
             },
         }
     }
 
-    pub fn evaluate(&mut self) -> Result<QEval, &'static str> {
+    pub fn evaluate(&mut self) -> EvalRes {
         match &self.parser.ast {
             &Some(ref tree) => self.eval(tree),
-            _ => Err("Parse error"),
+            _ => Err(String::from("Parser failed to create S-expression structure. Find your missing paren.")), 
         }
     }
 }

@@ -7,9 +7,16 @@ use std::collections::HashMap;
 use std::result::Result;
 //use computer::QuantumComputer;
 use std::string::String;
+use lang::compilation::*;
 
 //pub type QEval = &'static str;
-pub type QEval = String;
+//pub type QEval = String;
+#[derive(Debug,Clone)]
+pub enum QEval {
+    Il(Vec<IlGate>),
+    S(String),
+    Nothing,
+}
 
 /// We panic if the initial state register has a different size to `width`.
 pub fn parse_raw(s:&str) -> Option<sexp::Sexp> {

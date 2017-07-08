@@ -1,8 +1,7 @@
-//! Advanced Rust quantum computer simulator.
+//! Cueball: quantum computing toolchain
 //!
-//! See the code [here](https://github.com/beneills/quantum).
+//! See the code [here](https://github.com/jwvictor/cueball).
 
-//! Used to be#![deny(missing_docs,
 #![deny(missing_debug_implementations, missing_copy_implementations,
         trivial_casts, trivial_numeric_casts,
         unsafe_code,

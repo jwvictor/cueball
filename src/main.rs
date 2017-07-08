@@ -15,7 +15,7 @@ fn main() {
     let result = if 1 == c2.value() { "heads" } else { "tails" };
     println!("coin flip: {}", result);
 
-    let rig:parser::Parser = parser::Parser::new("(module jasonmod (qdef bit my-thing) (qdef bit your-thing))");
+    let rig:parser::Parser = parser::Parser::new("(module jasonmod (qdef bit my-thing) (qdef bit your-thing)(qdef lambda (a b c) ((h 1) (q 2))))");
     let mut evalr:evaluator::Evaluator = evaluator::Evaluator::new(&rig);
     let e = evalr.evaluate(); 
     println!("e: {:?}\n",  e);
